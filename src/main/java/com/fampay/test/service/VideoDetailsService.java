@@ -31,7 +31,7 @@ public class VideoDetailsService {
             final int pageNo = getPageNo(dashboardRequestDto.getStart(),
                     dashboardRequestDto.getLength());
 
-            final Pageable pageable = createPageable(pageNo, dashboardRequestDto.getLength(),
+            final Pageable pageable = createPageable(pageNo - 1, dashboardRequestDto.getLength(),
                     dashboardRequestDto.getColumns()
                             .get(dashboardRequestDto.getOrder().get(0).getColumn()).getData(),
                     dashboardRequestDto.getOrder().get(0).getDir());
@@ -47,9 +47,7 @@ public class VideoDetailsService {
 
                 final int totalRecords = videoDetailsRepository.getTotalRecords();
 
-                final DashboardResponseDto dashboardResponseDto = createResponse(dashboardRequestDto.getDraw(), videoDetailsPage.getTotalElements(), totalRecords, videoDetailsList);
-
-                return dashboardResponseDto;
+                return getDashboardResponseDto(dashboardRequestDto.getDraw(), videoDetailsPage.getTotalElements(), totalRecords, videoDetailsList);
             } else {
                 return new DashboardResponseDto(dashboardRequestDto.getDraw(), 0, 0, new ArrayList<>());
             }
@@ -58,7 +56,7 @@ public class VideoDetailsService {
         }
     }
 
-    private DashboardResponseDto createResponse(int draw, long totalElementsInPage, int totalRecords, List<VideoDetails> videoDetailsList) {
+    private DashboardResponseDto getDashboardResponseDto(int draw, long totalElementsInPage, int totalRecords, List<VideoDetails> videoDetailsList) {
         final DashboardResponseDto dashboardResponseDto = new DashboardResponseDto();
         dashboardResponseDto.setDraw(draw);
         dashboardResponseDto.setRecordsFiltered(totalElementsInPage);
@@ -84,6 +82,7 @@ public class VideoDetailsService {
     }
 
     private int getPageNo(int firstRowNo, int numberOfRowsInPage) {
+        firstRowNo = firstRowNo + 1;
         int pageNo = firstRowNo / numberOfRowsInPage;
         pageNo = pageNo + 1;
         return pageNo;
@@ -103,7 +102,7 @@ public class VideoDetailsService {
     //This method will get video details from DB
     //using pageable and search value that user might have given on UI
     private Page<VideoDetailsEntity> getVideoDetailsFromDB(DashboardRequestDto dashboardRequestDto, Pageable pageable) {
-        Page<VideoDetailsEntity> videoDetailsPage = null;
+        Page<VideoDetailsEntity> videoDetailsPage;
         if (dashboardRequestDto.getSearch() != null && dashboardRequestDto.getSearch().getValue() != null && !dashboardRequestDto.getSearch().getValue().isEmpty()) {
             videoDetailsPage = videoDetailsRepository.findByTitle(pageable, dashboardRequestDto.getSearch().getValue());
         } else {

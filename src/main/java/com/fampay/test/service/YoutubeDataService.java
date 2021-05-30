@@ -3,6 +3,7 @@ package com.fampay.test.service;
 import com.fampay.test.ApplicationProperties;
 import com.fampay.test.dao.entities.VideoDetailsEntity;
 import com.fampay.test.dao.repository.VideoDetailsRepository;
+import com.fampay.test.thirdparty.youtube.data.dto.response.Snippet;
 import com.fampay.test.thirdparty.youtube.data.dto.response.YoutubeDataSearchApiResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -49,11 +50,13 @@ public class YoutubeDataService {
     @Scheduled(fixedDelay = 10000, initialDelay = 10000)
     public void fixedDelaySch() throws ParseException {
 
+        //Here we are checking whether all API keys are used
         if (apiKeyIndex == applicationProperties.getApiKeys().size()) {
             System.out.println("All API keys are exhausted, add new API key and restart the application");
             return;
         }
 
+        //creating search URL
         String searchURL = applicationProperties.getYoutubeDataApiUrl() + "/search?part={part}&maxResults={maxResults}&order={order}&q={q}&key={key}";
 
         //Creating new map from youtube data query params specified in application.properties
@@ -77,35 +80,43 @@ public class YoutubeDataService {
                     if (prevVideoId != null && prevVideoId.equals(youtubeDataSearchApiResponse.getItems()[i].getId().getVideoId())) {
                         break;
                     } else {
-                        VideoDetailsEntity videoDetailsEntity = new VideoDetailsEntity();
-                        videoDetailsEntity.setDescription(youtubeDataSearchApiResponse.getItems()[i].getSnippet().getDescription());
-                        videoDetailsEntity.setTitle(youtubeDataSearchApiResponse.getItems()[i].getSnippet().getTitle());
-                        videoDetailsEntity.setThumbnailUrl(youtubeDataSearchApiResponse.getItems()[i].getSnippet().getThumbnails().getDefaultQuality().getUrl());
-
-                        SimpleDateFormat format = new SimpleDateFormat(
-                                "yyyy-MM-dd'T'HH:mm:ss'Z'");
-                        format.setTimeZone(TimeZone.getTimeZone("UTC"));
-
-
-                        Date publishTime = format.parse(youtubeDataSearchApiResponse.getItems()[i].getSnippet().getPublishTime());
-                        videoDetailsEntity.setPublishDatetime(publishTime);
+                        VideoDetailsEntity videoDetailsEntity = createVideoDetailsEntity(youtubeDataSearchApiResponse.getItems()[i].getSnippet());
 
                         videoDetailsRepository.save(videoDetailsEntity);
                     }
                 }
 
+                //Here using 0th index for video id and publish time
+                //since we want the latest one and the response is order by date desc
                 prevVideoId = youtubeDataSearchApiResponse.getItems()[0].getId().getVideoId();
                 prevVideoPublishedTime = youtubeDataSearchApiResponse.getItems()[0].getSnippet().getPublishTime();
 
             }
         } catch (HttpStatusCodeException exception) {
             if (exception.getStatusCode() == HttpStatus.FORBIDDEN) {
-                exception.getMessage().contains("quotaExceeded");
-                apiKeyIndex++;
-                System.out.println("Current API key quota exhausted, next API key will be used in next interval");
+                if (exception.getMessage().contains("quotaExceeded")) {
+                    apiKeyIndex++;
+                    System.out.println("Current API key quota exhausted, next API key will be used in next interval");
+                }
             }
             System.out.println("Exception: " + exception.getMessage());
         }
+    }
+
+    private VideoDetailsEntity createVideoDetailsEntity(Snippet snippet) throws ParseException {
+        VideoDetailsEntity videoDetailsEntity = new VideoDetailsEntity();
+        videoDetailsEntity.setDescription(snippet.getDescription());
+        videoDetailsEntity.setTitle(snippet.getTitle());
+        videoDetailsEntity.setThumbnailUrl(snippet.getThumbnails().getDefaultQuality().getUrl());
+
+        //Converting ZULU time zone to IST
+        SimpleDateFormat format = new SimpleDateFormat(
+                "yyyy-MM-dd'T'HH:mm:ss'Z'");
+        format.setTimeZone(TimeZone.getTimeZone("UTC"));
+        Date publishTime = format.parse(snippet.getPublishTime());
+
+        videoDetailsEntity.setPublishDatetime(publishTime);
+        return videoDetailsEntity;
     }
 }
 
